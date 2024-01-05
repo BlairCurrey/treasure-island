@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Reverse Minesweeper</title>
+    <style>
+      :root {
+        --cell-size: 50px;
+        --grid-columns: 5;
+        --grid-rows: 5;
+      }
+
+      body {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+      }
+
+      main {
+        max-width: calc(var(--cell-size) * var(--grid-columns));
+      }
+
+      .grid-container {
+        text-align: center;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(var(--grid-columns), var(--cell-size));
+        grid-template-rows: repeat(var(--grid-rows), var(--cell-size));
+        border: 1px solid black;
+      }
+
+      .cell {
+        width: var(--cell-size);
+        height: var(--cell-size);
+        border: 1px solid black;
+        box-sizing: border-box;
+        text-align: center;
+        line-height: var(--cell-size);
+        /* 20px for cell size of 50 */
+        font-size: calc(var(--cell-size) * 0.4);
+        cursor: pointer;
+      }
+
+      #moveCounter {
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="grid-container">
+        <div id="gameGrid" class="grid"></div>
+
+        <!-- Dialog box for "You Win" message and play-again button -->
+        <dialog id="winDialog">
+          <p>You Win!</p>
+          <button id="playAgainButton">Play Again</button>
+        </dialog>
+      </div>
+      <div id="moveCounter">Moves: 0</div>
+      <div id="sessionAverageMoveCount">Session Average: <i>None</i></div>
+      <h2>Instructions</h2>
+      <p>
+        Find the target cell in as few moves as possible. Click a cell to reveal
+        the distance to the target. The target cell is randomly selected at the
+        start of each game. The distance is calculated using the
+        <a
+          target="_blank"
+          href="https://en.wikipedia.org/wiki/Chebyshev_distance"
+          >Chebyshev</a
+        >
+        distance formula which considers diagonals adjacent.
+      </p>
+    </main>
+
+    <script>
+      function getDistance(x1, y1, x2, y2) {
+        // Chebyshev distance
+        const dx = Math.abs(x2 - x1);
+        const dy = Math.abs(y2 - y1);
+        return Math.max(dx, dy);
+      }
+
+      function saveMoveCountToSessionStorage(moveCount) {
+        const moveCountHistory = JSON.parse(
+          sessionStorage.getItem("moveCountHistory") ?? "[]"
+        );
+        moveCountHistory.push(moveCount);
+        sessionStorage.setItem(
+          "moveCountHistory",
+          JSON.stringify(moveCountHistory)
+        );
+      }
+
+      function getSessionAverageMoves() {
+        const averageMoveHistory = JSON.parse(
+          sessionStorage.getItem("moveCountHistory") ?? "[]"
+        );
+        return (
+          averageMoveHistory.reduce((a, b) => a + b, 0) /
+          averageMoveHistory.length
+        );
+      }
+
+      // column size driven by css var
+      const rootElement = document.querySelector(":root");
+      const styles = getComputedStyle(rootElement);
+      const cols = styles.getPropertyValue("--grid-columns");
+
+      const gridSize = cols;
+      const targetCell = {
+        // Randomly select target cell
+        x: Math.floor(Math.random() * gridSize),
+        y: Math.floor(Math.random() * gridSize),
+      };
+
+      const gameGrid = document.getElementById("gameGrid");
+      const moveCounter = document.getElementById("moveCounter");
+      const winDialog = document.getElementById("winDialog");
+      const playAgainButton = document.getElementById("playAgainButton");
+      const sessionAverageMoveCount = document.getElementById(
+        "sessionAverageMoveCount"
+      );
+
+      let moves = 0;
+      let gameEnded = false;
+
+      // Create the grid
+      for (let i = 0; i < gridSize; i++) {
+        for (let j = 0; j < gridSize; j++) {
+          const cell = document.createElement("div");
+          cell.classList.add("cell");
+          cell.dataset.x = i;
+          cell.dataset.y = j;
+          gameGrid.appendChild(cell);
+        }
+      }
+
+      const sessionAverageMoves = getSessionAverageMoves();
+      if (sessionAverageMoves) {
+        sessionAverageMoveCount.textContent = `Session Average: ${sessionAverageMoves.toFixed(
+          2
+        )}`;
+      }
+
+      // Event listener for cell clicks
+      gameGrid.addEventListener("click", (event) => {
+        if (!gameEnded && event.target.classList.contains("cell")) {
+          const clickedX = parseInt(event.target.dataset.x);
+          const clickedY = parseInt(event.target.dataset.y);
+
+          // Calculate distance to target cell
+          const distance = getDistance(
+            clickedX,
+            clickedY,
+            targetCell.x,
+            targetCell.y
+          );
+
+          if (event.target.textContent === "") {
+            // Display the distance in the clicked cell
+            event.target.textContent = distance;
+
+            // Increment move counter
+            moves++;
+          }
+
+          // Change color for the target cell (where distance is 0)
+          if (distance === 0) {
+            event.target.style.backgroundColor = "black";
+            event.target.style.color = "white";
+            gameEnded = true;
+            saveMoveCountToSessionStorage(moves);
+            winDialog.showModal();
+          }
+
+          moveCounter.textContent = `Moves: ${moves}`;
+        }
+      });
+
+      // Event listener for play-again button
+      playAgainButton.addEventListener("click", () => {
+        resetGame();
+        winDialog.close();
+      });
+
+      // Function to reset the game
+      function resetGame() {
+        moves = 0;
+        moveCounter.textContent = "Moves: 0";
+        sessionAverageMoveCount.textContent = `Session Average: ${getSessionAverageMoves().toFixed(
+          2
+        )}`;
+        gameEnded = false;
+        targetCell.x = Math.floor(Math.random() * gridSize);
+        targetCell.y = Math.floor(Math.random() * gridSize);
+
+        const cells = document.querySelectorAll(".cell");
+        cells.forEach((cell) => {
+          cell.textContent = "";
+          cell.style.backgroundColor = "";
+          cell.style.color = "";
+        });
+      }
+    </script>
+  </body>
+</html>
